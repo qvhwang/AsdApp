@@ -13,6 +13,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// ===== DB POOL (dùng promise để await được) =====
 const db = mysql.createPool({
   host: 'localhost',
   user: 'root',
@@ -26,6 +27,7 @@ db.getConnection()
 
 app.get('/', (req, res) => res.send('SERVER OK'));
 
+// ===== REGISTER =====
 app.post('/api/auth/register', async (req, res) => {
   const { full_name, email, password } = req.body;
 
@@ -55,6 +57,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
+// ===== LOGIN =====
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -94,6 +97,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// ===== FORGOT PASSWORD: gửi mã 6 số =====
 app.post('/api/auth/forgot-password', async (req, res) => {
   const { email } = req.body;
 
@@ -110,9 +114,11 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
     const user = rows[0];
 
+    // Tạo mã 6 số
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 phút
 
+    // Lưu mã vào DB
     await db.execute(
       `INSERT INTO password_reset_codes (email, code, expires_at)
        VALUES (?, ?, ?)
@@ -120,6 +126,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
       [email, code, expiresAt, code, expiresAt]
     );
 
+    // Gửi email
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -154,6 +161,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   }
 });
 
+// ===== RESET PASSWORD: xác minh mã + đổi mật khẩu =====
 app.post('/api/auth/reset-password', async (req, res) => {
   const { email, code, new_password } = req.body;
 
@@ -183,6 +191,11 @@ app.post('/api/auth/reset-password', async (req, res) => {
   }
 });
 
+// ===== AI ROUTES =====
+const aiRoutes = require('./src/routes/ai.consultation.routes');
+app.use('/api/ai', aiRoutes);
+
+// ===== CÁC ROUTES KHÁC =====
 const childRoutes = require('./src/routes/children.routes');
 const mchatRoutes = require('./src/routes/mchat.routes');
 const userRoutes = require('./src/routes/user.routes');

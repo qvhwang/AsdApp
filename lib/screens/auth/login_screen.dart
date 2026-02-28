@@ -24,13 +24,23 @@ class _LoginScreenState extends State<LoginScreen> {
     final email = emailCtrl.text.trim();
     final password = passwordCtrl.text;
 
-    // ✅ Validate trước khi gọi API
-    if (email.isEmpty || password.isEmpty) {
-      AppToast.show(context, 'Vui lòng nhập email và mật khẩu', success: false);
+    // ✅ Kiểu 0: chưa nhập gì
+    if (email.isEmpty) {
+      AppToast.show(context, 'Vui lòng nhập email', success: false);
       return;
     }
-    if (!RegExp(r'^[\w.]+@[\w]+\.[\w]+$').hasMatch(email)) {
-      AppToast.show(context, 'Email không hợp lệ', success: false);
+    if (password.isEmpty) {
+      AppToast.show(context, 'Vui lòng nhập mật khẩu', success: false);
+      return;
+    }
+
+    // ✅ Kiểu 1: mật khẩu chưa đủ 6 ký tự
+    if (password.length < 6) {
+      AppToast.show(
+        context,
+        'Mật khẩu phải có ít nhất 6 ký tự',
+        success: false,
+      );
       return;
     }
 
@@ -58,19 +68,19 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       final msg = e.toString().replaceFirst('Exception: ', '');
 
-      // ✅ Thông báo chi tiết từng trường hợp
+      // ✅ Kiểu 2: email không tồn tại
+      // ✅ Kiểu 3: đúng email nhưng sai mật khẩu
+      // ✅ Kiểu 4: tài khoản bị khóa
       String display;
-      if (msg.contains('khóa') || msg.contains('locked')) {
-        display = 'Tài khoản đã bị khóa. Liên hệ admin để được hỗ trợ.';
-      } else if (msg.contains('không đúng') ||
+      if (msg.contains('không tồn tại') || msg.contains('not found')) {
+        display = 'Tài khoản không tồn tại. Vui lòng kiểm tra lại email.';
+      } else if (msg.contains('Mật khẩu không đúng') ||
+          msg.contains('Sai email hoặc mật khẩu') ||
           msg.contains('incorrect') ||
-          msg.contains('password') ||
-          msg.contains('mật khẩu')) {
-        display = 'Email hoặc mật khẩu không đúng';
-      } else if (msg.contains('không tồn tại') ||
-          msg.contains('not found') ||
-          msg.contains('tìm thấy')) {
-        display = 'Email không tồn tại trong hệ thống';
+          msg.contains('wrong')) {
+        display = 'Mật khẩu không đúng. Vui lòng thử lại.';
+      } else if (msg.contains('khóa') || msg.contains('locked')) {
+        display = 'Tài khoản đã bị khóa. Liên hệ admin để được hỗ trợ.';
       } else {
         display = msg.isNotEmpty ? msg : 'Đăng nhập thất bại, thử lại sau';
       }
@@ -126,6 +136,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 40),
 
+              // EMAIL
               TextField(
                 controller: emailCtrl,
                 keyboardType: TextInputType.emailAddress,
@@ -143,6 +154,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 16),
 
+              // MẬT KHẨU
               TextField(
                 controller: passwordCtrl,
                 obscureText: obscure,
@@ -165,7 +177,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 onSubmitted: (_) => _login(),
               ),
 
-              // ✅ Link quên mật khẩu
+              // QUÊN MẬT KHẨU
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
@@ -184,6 +196,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 8),
 
+              // NÚT ĐĂNG NHẬP
               SizedBox(
                 width: double.infinity,
                 height: 50,
