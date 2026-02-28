@@ -1,12 +1,10 @@
 const axios = require('axios');
 const db = require('../config/db');
 
-// HuggingFace Inference Providers
-const HF_URL = 'https://router.huggingface.co/novita/v3/openai/chat/completions';
-const HF_MODEL = 'meta-llama/llama-3.1-8b-instruct';
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_MODEL = 'llama-3.1-8b-instant';
 
 
-// ===== HỎI AI =====
 exports.askAI = async (req, res) => {
   const { user_id, child_id, question } = req.body;
 
@@ -15,7 +13,6 @@ exports.askAI = async (req, res) => {
   }
 
   try {
-    // Lấy thông tin trẻ để AI có context
     const [childRows] = await db.execute(
       'SELECT full_name, birth_date, gender, guardian_name FROM children WHERE id = ? AND user_id = ?',
       [child_id, user_id]
@@ -33,14 +30,12 @@ exports.askAI = async (req, res) => {
       : 'không rõ';
     const guardian = child.guardian_name || 'không rõ';
 
-    // Lấy lịch sử chat gần nhất
     const [history] = await db.execute(
       `SELECT question, ai_response FROM ai_consultations
        WHERE child_id = ? ORDER BY created_at DESC LIMIT 5`,
       [child_id]
     );
 
-    // ✅ Lấy lịch sử sàng lọc M-CHAT của trẻ
     const [sessions] = await db.execute(
       `SELECT id, risk_level, total_score, created_at
        FROM mchat_sessions
@@ -49,7 +44,6 @@ exports.askAI = async (req, res) => {
       [child_id]
     );
 
-    // ✅ Lấy câu trả lời sàng lọc gần nhất
     let screeningContext = '';
     if (sessions.length > 0) {
       const latestSession = sessions[0];
@@ -80,7 +74,6 @@ ${answers
 ${sessions.length > 1 ? `- Đã thực hiện ${sessions.length} lần sàng lọc` : ''}`;
     }
 
-    // ✅ Lấy toàn bộ thư viện câu hỏi M-CHAT
     const [mchatQuestions] = await db.execute(
       `SELECT question_text, risk_answer FROM mchat_questions
        WHERE is_active = 1 ORDER BY id ASC`
@@ -93,7 +86,6 @@ ${sessions.length > 1 ? `- Đã thực hiện ${sessions.length} lần sàng l�
         ).join('\n')
       : '';
 
-    // Tạo system prompt có thêm context sàng lọc + thư viện câu hỏi
     const systemPrompt = `Bạn là chuyên gia tư vấn phát triển trẻ em, chuyên về rối loạn phổ tự kỷ (ASD).
 Bạn đang tư vấn cho phụ huynh về ${gender} tên ${child.full_name}, ${age}.
 - Ngày sinh: ${dob}
@@ -106,28 +98,24 @@ Khi phụ huynh hỏi về từng câu hỏi cụ thể, hãy giải thích ý n
 Luôn nhắc phụ huynh tham khảo ý kiến bác sĩ chuyên khoa cho các vấn đề nghiêm trọng.
 KHÔNG chẩn đoán bệnh, chỉ cung cấp thông tin hỗ trợ và hướng dẫn chung.`;
 
-    // Đảo ngược lịch sử để đúng thứ tự
     const reversedHistory = history.reverse();
 
-    // Build messages theo format OpenAI-compatible
     const chatMessages = [
       { role: 'system', content: systemPrompt },
     ];
 
-    // Thêm lịch sử hội thoại
     for (const h of reversedHistory) {
       chatMessages.push({ role: 'user', content: h.question });
       chatMessages.push({ role: 'assistant', content: h.ai_response });
     }
 
-    // Thêm câu hỏi hiện tại
     chatMessages.push({ role: 'user', content: question });
 
-    console.log(`🤖 Gọi model: ${HF_MODEL}`);
-    const hfRes = await axios.post(
-      HF_URL,
+    console.log(`🤖 Gọi Groq model: ${GROQ_MODEL}`);
+    const groqRes = await axios.post(
+      GROQ_URL,
       {
-        model: HF_MODEL,
+        model: GROQ_MODEL,
         messages: chatMessages,
         max_tokens: 512,
         temperature: 0.7,
@@ -135,20 +123,18 @@ KHÔNG chẩn đoán bệnh, chỉ cung cấp thông tin hỗ trợ và hướng
       {
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.HF_API_KEY}`,
+          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
         },
-        timeout: 60000,
+        timeout: 30000,
       }
     );
 
-    console.log('Response:', JSON.stringify(hfRes.data).substring(0, 300));
-    let aiResponse = hfRes.data?.choices?.[0]?.message?.content?.trim();
+    let aiResponse = groqRes.data?.choices?.[0]?.message?.content?.trim();
 
     if (!aiResponse) {
       return res.status(500).json({ message: 'AI không phản hồi' });
     }
 
-    // Lưu vào DB
     await db.execute(
       `INSERT INTO ai_consultations (user_id, child_id, question, ai_response)
        VALUES (?, ?, ?, ?)`,
@@ -173,7 +159,6 @@ KHÔNG chẩn đoán bệnh, chỉ cung cấp thông tin hỗ trợ và hướng
   }
 };
 
-// ===== LỊCH SỬ THEO TRẺ =====
 exports.getHistoryByChild = async (req, res) => {
   const { childId } = req.params;
   try {
@@ -190,7 +175,6 @@ exports.getHistoryByChild = async (req, res) => {
   }
 };
 
-// ===== LỊCH SỬ THEO USER =====
 exports.getHistoryByUser = async (req, res) => {
   const { userId } = req.params;
   try {
@@ -209,7 +193,6 @@ exports.getHistoryByUser = async (req, res) => {
   }
 };
 
-// ===== XÓA LỊCH SỬ =====
 exports.deleteHistory = async (req, res) => {
   const { id } = req.params;
   try {
@@ -223,7 +206,6 @@ exports.deleteHistory = async (req, res) => {
   }
 };
 
-// ===== HELPER: tính tuổi =====
 function _calcAge(dob) {
   if (!dob) return 'không rõ tuổi';
   const birth = new Date(dob);

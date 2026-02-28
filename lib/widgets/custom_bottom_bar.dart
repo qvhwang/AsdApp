@@ -19,7 +19,6 @@ class CustomBottomBar extends StatelessWidget {
       child: Stack(
         alignment: Alignment.bottomCenter,
         children: [
-          // nền bar
           Container(
             height: 60,
             decoration: const BoxDecoration(
@@ -36,7 +35,6 @@ class CustomBottomBar extends StatelessWidget {
             ),
           ),
 
-          // nút giữa (chụp ảnh)
           Positioned(
             bottom: 20,
             child: GestureDetector(

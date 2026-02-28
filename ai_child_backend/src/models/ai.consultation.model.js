@@ -10,7 +10,7 @@ exports.saveConsultation = async (user_id, child_id, question, aiResponse) => {
       child_id || null,
       question,
       aiResponse,
-      'Qwen 2.5 (HuggingFace)',
+      'Llama 3.1 8B (Groq)',
     ]
   );
 };
